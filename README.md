@@ -15,7 +15,7 @@ pip install matplotlib
 pip install nose
 ```
 
-## Run 
+## Run
 
 To run the program:
 
