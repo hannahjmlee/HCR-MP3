@@ -118,7 +118,7 @@ def filter_batch(states_batch,actions_batch,rewards_batch,percentile=50):
 def main(args):
     # TRAINING ------------------------------------------------------------------------------
     batch_size = 100 # how many episodes to run in a single batch
-    session_size = 100 #100 # how many training epochs. each epoch runs one batch
+    session_size = 100 # how many training epochs. each epoch runs one batch
     percentile = 80 # used to determine elite reward threshold
     hidden_size = 200
     learning_rate = 0.0025
@@ -180,12 +180,16 @@ def main(args):
     # TESTING ----------------------------------------------------------------------------------
     # for playing with keyboard
     # enable key presses
-    print("STARTING GAME")
+    dump = input("Training is complete. Program has been paused. Input any character to begin testing.")
+    print("BEGIN TESTING ---------------------------------------------------------------------------")
     env.render()
     env.unwrapped.viewer.window.on_key_press = key_press
     env.unwrapped.viewer.window.on_key_release = key_release
     global do_user_action, user_action
     activation = nn.Softmax(dim=1)
+
+    f = open("testing.txt", "w+")
+    f.write("Episode, Reward\n")
     for i_episode in range(args.num_episodes):
         state = env.reset()
         total_reward = 0
@@ -210,7 +214,12 @@ def main(args):
             state = next_state
             time.sleep(0.05)
         print('Episode', i_episode, ': reward =', total_reward)
+        f.write(str(i_episode))
+        f.write(", ")
+        f.write(str(total_reward))
+        f.write("\n")
     env.close()
+    f.close()
 
 
 if __name__ == "__main__":

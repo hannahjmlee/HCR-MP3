@@ -1,2 +1,0 @@
-session, loss, reward mean, reward threshold
-0, 1.3718957901000977, -260.59817846084263, -127.90894228518208
