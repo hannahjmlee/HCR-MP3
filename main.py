@@ -53,6 +53,29 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         return self.fc2(x)
 
+def save_ckp(state, path):
+    """
+    state: checkpoint we want to save
+    path: path to save checkpoint
+    """
+    # save data to the path given
+    torch.save(state, path)
+
+def load_ckp(path, model, optimizer):
+    """
+    checkpoint_path: path to save checkpoint
+    model: model that we want to load checkpoint parameters into
+    optimizer: optimizer we defined in previous training
+    """
+    # load check point
+    checkpoint = torch.load(path)
+    # initialize state_dict from checkpoint to model
+    model.load_state_dict(checkpoint['state_dict'])
+    # initialize optimizer from checkpoint to optimizer
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    # return model, optimizer
+    return model, optimizer
+
 def generate_batch(env,batch_size, net, t_max=5000):
     # make activation function
     activation = nn.Softmax(dim=1)
@@ -118,7 +141,7 @@ def filter_batch(states_batch,actions_batch,rewards_batch,percentile=50):
 def main(args):
     # TRAINING ------------------------------------------------------------------------------
     batch_size = 100 # how many episodes to run in a single batch
-    session_size = 100 # how many training epochs. each epoch runs one batch
+    session_size = 1000 # how many training epochs. each epoch runs one batch
     percentile = 80 # used to determine elite reward threshold
     hidden_size = 200
     learning_rate = 0.0025
@@ -138,43 +161,54 @@ def main(args):
     #optimisation function
     optimizer = optim.Adam(params=net.parameters(), lr=learning_rate)
 
-    f= open("training.txt", "w+")
-    f.write("session, loss, reward mean, reward threshold\n")
-    for i in range(session_size):
-        #generate batch of episode data
-        batch_states,batch_actions,batch_rewards = generate_batch(env, batch_size, net, t_max=5000)
+    print(args.load)
 
-        # filter out bad episodes - keep elite ones
-        elite_states, elite_actions = filter_batch(batch_states,batch_actions,batch_rewards,percentile)
+    if(args.load == False):
+        f= open("training.txt", "w+")
+        f.write("session, loss, reward mean, reward threshold\n")
+        for i in range(session_size):
+            #generate batch of episode data
+            batch_states,batch_actions,batch_rewards = generate_batch(env, batch_size, net, t_max=5000)
 
-        # pass elite episodes through neural network
-        optimizer.zero_grad()
+            # filter out bad episodes - keep elite ones
+            elite_states, elite_actions = filter_batch(batch_states,batch_actions,batch_rewards,percentile)
 
-        tensor_states = torch.FloatTensor(elite_states)
-        tensor_actions = torch.LongTensor(elite_actions)
+            # pass elite episodes through neural network
+            optimizer.zero_grad()
 
-        action_scores_v = net(tensor_states)
-        loss_v = objective(action_scores_v, tensor_actions)
-        loss_v.backward()
-        optimizer.step()
+            tensor_states = torch.FloatTensor(elite_states)
+            tensor_actions = torch.LongTensor(elite_actions)
 
-        #show results
-        mean_reward, threshold = np.mean(batch_rewards), np.percentile(batch_rewards, percentile)
-        print("%d: loss=%.3f, reward_mean=%.1f, reward_threshold=%.1f" % (
+            action_scores_v = net(tensor_states)
+            loss_v = objective(action_scores_v, tensor_actions)
+            loss_v.backward()
+            optimizer.step()
+
+            #show results
+            mean_reward, threshold = np.mean(batch_rewards), np.percentile(batch_rewards, percentile)
+            print("%d: loss=%.3f, reward_mean=%.1f, reward_threshold=%.1f" % (
                 i, loss_v.item(), mean_reward, threshold))
-        f.write(str(i))
-        f.write(", ")
-        f.write(str(loss_v.item()))
-        f.write(", ")
-        f.write(str(mean_reward))
-        f.write(", ")
-        f.write(str(threshold))
-        f.write("\n")
+            f.write(str(i))
+            f.write(", ")
+            f.write(str(loss_v.item()))
+            f.write(", ")
+            f.write(str(mean_reward))
+            f.write(", ")
+            f.write(str(threshold))
+            f.write("\n")
 
-        #check if
-        if np.mean(batch_rewards)> completion_score:
-            print("Environment has been successfullly completed!")
-    f.close()
+            #check if
+            if np.mean(batch_rewards)> completion_score:
+                print("Environment has been successfullly completed!")
+        f.close()
+
+        checkpoint = {
+            'state_dict': net.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            }
+        save_ckp(checkpoint,'saved_model')
+
+    model, optimizer = load_ckp('saved_model', net, optimizer)
 
 
     # TESTING ----------------------------------------------------------------------------------
@@ -226,7 +260,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(description='LunarLander-v2 Discrete')
     parser.add_argument('--num_episodes', type=int, default = 2000,
                         help='number of episodes for training')
+    parser.add_argument('--load', type=bool, default = False,
+                        help='flag to laod a pretrained model')
     args = parser.parse_args()
     main(args)
-
-
